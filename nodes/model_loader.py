@@ -46,7 +46,5 @@ class JanusModelLoader:
             model_dir,
             trust_remote_code=True
         ).to(dtype).to(device).eval()
-        print(vl_gpt)
-        print(vl_chat_processor)
         
         return (vl_gpt, vl_chat_processor) 
