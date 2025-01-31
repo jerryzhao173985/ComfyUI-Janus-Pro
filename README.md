@@ -1,5 +1,28 @@
 # ComfyUI-Janus-Pro
 
+For mac 
+[https://github.com/takahirosir/Janus](https://github.com/takahirosir/Janus)
+
+For run 1B pro need change:
+In vqq_model.py
+
+UpSample class:
+
+[https://github.com/takahirosir/Janus/commit/ff1e732981695b08c35f7356e04c89bb925906bf#diff-1b6c4cb1987bfffe1eba923c8b618df435472bfa1544712d10e491cd3b852c93](https://github.com/takahirosir/Janus/commit/ff1e732981695b08c35f7356e04c89bb925906bf#diff-1b6c4cb1987bfffe1eba923c8b618df435472bfa1544712d10e491cd3b852c93)
+
+```python
+if torch.cuda.is_available():
+            dtype = torch.bfloat16
+        else:
+            dtype = torch.float16
+            
+        if x.dtype != torch.float32:
+            x = F.interpolate(x.to(torch.float), scale_factor=2.0, mode="nearest").to(dtype)
+```
+
+Note that need to have .to(dtype) as float16 here for mac mps
+
+
 [English](README_EN.md) | 简体中文
 
 ComfyUI 的 Janus-Pro 节点，一个统一的多模态理解和生成框架。

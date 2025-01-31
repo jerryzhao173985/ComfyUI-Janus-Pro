@@ -48,7 +48,11 @@ class JanusImageGeneration:
     FUNCTION = "generate_images"
     CATEGORY = "Janus-Pro"
 
+    device = "mps"
+    dtype=torch.float16
+
     def generate_images(self, model, processor, prompt, seed, batch_size=1, temperature=1.0, cfg_weight=5.0, top_p=0.95):
+        print("Generating images...")
         try:
             from janus.models import MultiModalityCausalLM
         except ImportError:
@@ -56,7 +60,6 @@ class JanusImageGeneration:
 
         # 设置随机种子
         torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
 
         # 图像参数设置
         image_token_num = 576  # 24x24 patches
@@ -83,20 +86,22 @@ class JanusImageGeneration:
 
         # 编码输入文本
         input_ids = processor.tokenizer.encode(prompt)
-        input_ids = torch.LongTensor(input_ids)
+        input_ids = torch.LongTensor(input_ids).to(self.device)
+        # input_ids = torch.tensor(input_ids, dtype=torch.long, device=self.device)
 
         # 准备条件和无条件输入
-        tokens = torch.zeros((parallel_size*2, len(input_ids)), dtype=torch.int).cuda()
+        tokens = torch.zeros((parallel_size*2, len(input_ids)), dtype=torch.int, device=self.device)
         for i in range(parallel_size*2):
             tokens[i, :] = input_ids
             if i % 2 != 0:  # 无条件输入
-                tokens[i, 1:-1] = processor.pad_id
+                tokens[i, 1:-1] = processor.tokenizer.pad_token_id
 
+        # model = model.to(self.device)
         # 获取文本嵌入
         inputs_embeds = model.language_model.get_input_embeddings()(tokens)
 
         # 生成图像tokens
-        generated_tokens = torch.zeros((parallel_size, image_token_num), dtype=torch.int).cuda()
+        generated_tokens = torch.zeros((parallel_size, image_token_num), dtype=torch.int, device = self.device)
         outputs = None
 
         # 自回归生成
@@ -125,14 +130,23 @@ class JanusImageGeneration:
             img_embeds = model.prepare_gen_img_embeds(next_token)
             inputs_embeds = img_embeds.unsqueeze(dim=1)
 
+        first_parameter = next(model.gen_vision_model.parameters())
+        print(f"First parameter shape: {first_parameter.dtype}")
+        print(f"Generated tokens shape: {generated_tokens.dtype}")
+        print(f"Generated tokens device: {generated_tokens.device}")
+        print(f"First parameter device: {first_parameter.device}")
+
         # 解码生成的tokens为图像
         dec = model.gen_vision_model.decode_code(
-            generated_tokens.to(dtype=torch.int), 
+            generated_tokens.to(dtype = torch.int),
             shape=[parallel_size, 8, img_size//patch_size, img_size//patch_size]
         )
-        
+
+        print("Decoded image shape: ", dec.shape)
         # 转换为numpy进行处理
-        dec = dec.to(torch.float32).cpu().numpy()
+        dec = dec.to(self.dtype).cpu().numpy()
+
+        print(f"Decoded image shape: {dec.shape}")
         
         # 确保是BCHW格式
         if dec.shape[1] != 3:

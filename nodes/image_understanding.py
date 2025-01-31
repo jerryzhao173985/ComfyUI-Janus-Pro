@@ -41,8 +41,11 @@ class JanusImageUnderstanding:
     RETURN_NAMES = ("text",)
     FUNCTION = "analyze_image"
     CATEGORY = "Janus-Pro"
+    dtype = torch.float16
+    device = "mps"
 
     def analyze_image(self, model, processor, image, question, seed, temperature, top_p, max_new_tokens):
+        print("Analyzing image...")
         try:
             from janus.models import MultiModalityCausalLM
         except ImportError:
@@ -50,7 +53,6 @@ class JanusImageUnderstanding:
 
         # 设置随机种子
         torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
 
         # 打印初始图像信息
         # print(f"Initial image shape: {image.shape}")
@@ -83,11 +85,15 @@ class JanusImageUnderstanding:
             {"role": "<|Assistant|>", "content": ""},
         ]
 
+        print("Preparing inputs...")
+
         prepare_inputs = processor(
             conversations=conversation, 
             images=[pil_image], 
             force_batchify=True
-        ).to(model.device)
+        ).to(self.device, dtype = self.dtype)
+
+        print("preparing inputs embeds...")
 
         inputs_embeds = model.prepare_inputs_embeds(**prepare_inputs)
 
